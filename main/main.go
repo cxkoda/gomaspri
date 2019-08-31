@@ -1,12 +1,19 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/cxkoda/gomaspri"
 )
 
 func main() {
 	config := gomaspri.ReadConfig("./config.toml")
-	fmt.Println(config)
+	log.Printf("Config: %v\n", config)
+
+	r := config.GetMail()
+
+	// fmt.Println(r)
+
+	config.PlainForward(r)
+
 }

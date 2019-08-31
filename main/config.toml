@@ -1,6 +1,11 @@
 [mail]
-host = ""
+imapHost = ""
+imapPort = 993
+smtpHost = ""
+smtpPort = 587
+address = ""
 user = ""
 pass = ""
 
 [list]
+recipients = [ ]
