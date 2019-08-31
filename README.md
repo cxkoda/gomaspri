@@ -1,3 +1,10 @@
-## GoMa[il]Spri[nkler]
+## GoMailSprinkler
 
+This project aims to solve the following problem:
+1. A sender sends a mail to a pre-setup mailing address
+2. A programm listens to the incoming mails under this address and
+3. Forwards the mail to a list of recipients
 
+Since I was not able to find a quick solution for this, I wrote a short implementation in go.
+
+**WORK IN PROGRESS**
