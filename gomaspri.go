@@ -1,12 +1,12 @@
 package gomaspri
 
 import (
-	"fmt"
-	"github.com/BurntSushi/toml"
 	"log"
+
+	"github.com/BurntSushi/toml"
 )
 
-var log = log.New(os.Stderr, "", log.LstdFlags | log.Lshortfile)
+// var log = log.New(os.Stderr, "", log.LstdFlags | log.Lshortfile)
 
 type MailConfig struct {
 	Host string `toml:"host"`
