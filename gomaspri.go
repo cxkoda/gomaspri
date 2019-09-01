@@ -45,7 +45,71 @@ func ReadConfig(Filepath string) Config {
 	return config
 }
 
-func GetUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap.SeqSet, uint32, error) {
+func (config *Config) GetUnseenMail() []imap.Message {
+	log.Println("Connecting to server...")
+
+	// Connect to server
+	c, err := client.DialTLS(config.Mail.ImapHostPort, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Connected")
+
+	// Don't forget to logout
+	defer c.Logout()
+
+	// Login
+	if err := c.Login(config.Mail.User, config.Mail.Pass); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Logged in")
+
+	// Select INBOX
+	mbox, err := c.Select("INBOX", false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// log.Println("Flags for INBOX:", mbox.Flags)
+
+	// Get the last message
+	if mbox.Messages == 0 {
+		log.Println("The mailbox is empty")
+	}
+
+	seqset, unseen, err := getUnseenMessageSeq(c, mbox)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if unseen == 0 {
+		return []imap.Message{}
+	}
+
+	// Get the whole message body
+	section := &imap.BodySectionName{}
+	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
+
+	messageChannels := make(chan *imap.Message, unseen)
+	done := make(chan error, unseen)
+	go func() {
+		done <- c.Fetch(seqset, items, messageChannels)
+	}()
+
+	// Convert channel to slice
+	messages := make([]imap.Message, 0)
+	for msg := range messageChannels {
+		log.Printf("%v: %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
+		messages = append(messages, *msg)
+	}
+
+	if err := <-done; err != nil {
+		log.Fatal(err)
+	}
+
+	return messages
+}
+
+func getUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap.SeqSet, uint32, error) {
 	from := mbox.UnseenSeqNum
 	to := mbox.Messages
 
@@ -57,11 +121,6 @@ func GetUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap
 	seqset.AddRange(from, to)
 	seqsetSize := to - from + 1
 
-	// return seqset, seqsetSize, nil
-	// section := &imap.BodySectionName{}
-
-	// items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
-	// items := imap.FetchFlags.Expand()
 	items := []imap.FetchItem{imap.FetchFlags}
 
 	messages := make(chan *imap.Message, seqsetSize)
@@ -94,70 +153,6 @@ func GetUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap
 	}
 
 	return seqsetUnseen, nUnseen, nil
-}
-
-func (config *Config) GetUnseenMail() []imap.Message {
-	log.Println("Connecting to server...")
-
-	// Connect to server
-	c, err := client.DialTLS(config.Mail.ImapHostPort, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Connected")
-
-	// Don't forget to logout
-	defer c.Logout()
-
-	// Login
-	if err := c.Login(config.Mail.User, config.Mail.Pass); err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Logged in")
-
-	// Select INBOX
-	mbox, err := c.Select("INBOX", false)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// log.Println("Flags for INBOX:", mbox.Flags)
-
-	// Get the last message
-	if mbox.Messages == 0 {
-		log.Println("The mailbox is empty")
-	}
-
-	seqset, unseen, err := GetUnseenMessageSeq(c, mbox)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if unseen == 0 {
-		return []imap.Message{}
-	}
-
-	// Get the whole message body
-	section := &imap.BodySectionName{}
-	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
-
-	messageChannels := make(chan *imap.Message, unseen)
-	done := make(chan error, unseen)
-	go func() {
-		done <- c.Fetch(seqset, items, messageChannels)
-	}()
-
-	// Convert channel to slice
-	messages := make([]imap.Message, 0)
-	for msg := range messageChannels {
-		log.Printf("%v: %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
-		messages = append(messages, *msg)
-	}
-
-	if err := <-done; err != nil {
-		log.Fatal(err)
-	}
-
-	return messages
 }
 
 func (config *Config) ForwardMessages(messages []imap.Message) {
