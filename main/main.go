@@ -2,12 +2,13 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/cxkoda/gomaspri"
 )
 
 func main() {
-	config := gomaspri.ReadConfig("./config.toml")
+	config := gomaspri.ReadConfig(os.Args[1])
 
 	config.Repeat(func() {
 		messages, err := config.GetUnseenMail()
