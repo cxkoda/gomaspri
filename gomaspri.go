@@ -31,8 +31,9 @@ type ListConfig struct {
 }
 
 type Config struct {
-	Mail MailConfig `toml:"mail"`
-	List ListConfig `toml:"list"`
+	Mail     MailConfig `toml:"mail"`
+	List     ListConfig `toml:"list"`
+	Filepath string
 }
 
 func ReadConfig(Filepath string) Config {
@@ -41,6 +42,7 @@ func ReadConfig(Filepath string) Config {
 		log.Fatalln(err)
 	}
 
+	config.Filepath = Filepath
 	config.Mail.ImapHostPort = config.Mail.ImapHost + ":" + fmt.Sprint(config.Mail.ImapPort)
 	config.Mail.SmtpHostPort = config.Mail.SmtpHost + ":" + fmt.Sprint(config.Mail.SmtpPort)
 
