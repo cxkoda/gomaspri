@@ -1,0 +1,28 @@
+[Unit]
+Description=Go Mail Sprinkler
+ConditionPathExists=/etc/gomaspri
+After=network.target
+ 
+[Service]
+Type=simple
+User=gomaspri
+Group=gomaspri
+LimitNOFILE=1024
+
+Restart=on-failure
+RestartSec=10
+
+WorkingDirectory=/etc/gomaspri
+ExecStart=/bin/gomaspri /etc/gomaspri/config.toml
+
+# make sure log directory exists and owned by syslog
+PermissionsStartOnly=true
+#ExecStartPre=/bin/mkdir -p /var/log/gomaspri
+#ExecStartPre=/bin/chown syslog:adm /var/log/gomaspri
+#ExecStartPre=/bin/chmod 755 /var/log/gomaspri
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=gomaspri
+ 
+[Install]
+WantedBy=multi-user.target
