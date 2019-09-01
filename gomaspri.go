@@ -47,13 +47,13 @@ func ReadConfig(Filepath string) Config {
 	return config
 }
 
-func (config *Config) GetUnseenMail() []imap.Message {
+func (config *Config) GetUnseenMail() ([]imap.Message, error) {
 	log.Println("Connecting to server...")
 
 	// Connect to server
 	c, err := client.DialTLS(config.Mail.ImapHostPort, nil)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	log.Println("Connected")
 
@@ -62,14 +62,14 @@ func (config *Config) GetUnseenMail() []imap.Message {
 
 	// Login
 	if err := c.Login(config.Mail.User, config.Mail.Pass); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	log.Println("Logged in")
 
 	// Select INBOX
 	mbox, err := c.Select("INBOX", false)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	// log.Println("Flags for INBOX:", mbox.Flags)
 
@@ -80,11 +80,11 @@ func (config *Config) GetUnseenMail() []imap.Message {
 
 	seqset, unseen, err := getUnseenMessageSeq(c, mbox)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	if unseen == 0 {
-		return []imap.Message{}
+		return []imap.Message{}, nil
 	}
 
 	// Get the whole message body
@@ -105,10 +105,10 @@ func (config *Config) GetUnseenMail() []imap.Message {
 	}
 
 	if err := <-done; err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return messages
+	return messages, nil
 }
 
 func getUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap.SeqSet, uint32, error) {
