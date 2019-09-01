@@ -49,7 +49,7 @@ func ReadConfig(Filepath string) Config {
 	return config
 }
 
-func (config *Config) GetMail() imap.Literal {
+func (config *Config) GetMail() []imap.Literal {
 	log.Println("Connecting to server...")
 
 	// Connect to server
@@ -73,36 +73,58 @@ func (config *Config) GetMail() imap.Literal {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// log.Println("Flags for INBOX:", mbox.Flags)
 
 	// Get the last message
 	if mbox.Messages == 0 {
 		log.Fatal("No message in mailbox")
 	}
+	from := uint32(1)
+	to := mbox.Messages
 	seqset := new(imap.SeqSet)
-	seqset.AddRange(mbox.Messages, mbox.Messages)
+	seqset.AddRange(from, to)
 
 	// Get the whole message body
 	section := &imap.BodySectionName{}
-	items := []imap.FetchItem{section.FetchItem()}
+	// items := []imap.FetchItem{imap.FetchAll}
+	// items := imap.FetchFull.Expand()
+	// items = append(items, section.FetchItem())
+	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
+	log.Println(items)
 
-	messages := make(chan *imap.Message, 1)
-	done := make(chan error, 1)
+	messages := make(chan *imap.Message, mbox.Messages)
+	done := make(chan error, mbox.Messages)
 	go func() {
 		done <- c.Fetch(seqset, items, messages)
 	}()
 
-	log.Println("Last message:")
-	msg := <-messages
-	r := msg.GetBody(section)
-	if r == nil {
-		log.Fatal("Server didn't returned message body")
+	var messageBodies []imap.Literal
+
+	for msg := range messages {
+		isNew := false
+		for _, flag := range msg.Flags {
+			if flag == imap.SeenFlag {
+				isNew = true
+			}
+		}
+		if isNew {
+			log.Println(msg.Envelope.Subject)
+
+			r := msg.GetBody(section)
+
+			if r == nil {
+				log.Fatal("Server didn't returned message body")
+			}
+
+			messageBodies = append(messageBodies, r)
+		}
 	}
 
 	if err := <-done; err != nil {
 		log.Fatal(err)
 	}
 
-	return r
+	return messageBodies
 }
 
 func (config *Config) SendMail(r imap.Literal) {
@@ -157,7 +179,13 @@ func (config *Config) SendMail(r imap.Literal) {
 	}
 }
 
-func (config *Config) PlainForward(msg imap.Literal) {
+func (config *Config) PlainForward(messages []imap.Literal) {
+	for _, msg := range messages {
+		config.plainForwardSingle(msg)
+	}
+}
+
+func (config *Config) plainForwardSingle(msg imap.Literal) {
 	log.Printf("Forwarding to: %v\n", config.List.Recipients)
 	// Set up authentication information.
 	auth := sasl.NewPlainClient("", config.Mail.User, config.Mail.Pass)
