@@ -1,8 +1,9 @@
 package gomaspri
 
 import (
+	"fmt"
 	"log"
-	"strconv"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -14,9 +15,9 @@ import (
 
 type MailConfig struct {
 	ImapHost     string `toml:"imapHost"`
-	ImapPort     int    `toml:"imapPort"`
+	ImapPort     uint32 `toml:"imapPort"`
 	SmtpHost     string `toml:"smtpHost"`
-	SmtpPort     int    `toml:"smtpPort"`
+	SmtpPort     uint32 `toml:"smtpPort"`
 	Address      string `toml:"address"`
 	User         string `toml:"user"`
 	Pass         string `toml:"pass"`
@@ -25,6 +26,7 @@ type MailConfig struct {
 }
 
 type ListConfig struct {
+	Interval   uint32   `toml:"interval"`
 	Recipients []string `toml:"recipients"`
 }
 
@@ -39,8 +41,8 @@ func ReadConfig(Filepath string) Config {
 		log.Fatalln(err)
 	}
 
-	config.Mail.ImapHostPort = config.Mail.ImapHost + ":" + strconv.Itoa(config.Mail.ImapPort)
-	config.Mail.SmtpHostPort = config.Mail.SmtpHost + ":" + strconv.Itoa(config.Mail.SmtpPort)
+	config.Mail.ImapHostPort = config.Mail.ImapHost + ":" + fmt.Sprint(config.Mail.ImapPort)
+	config.Mail.SmtpHostPort = config.Mail.SmtpHost + ":" + fmt.Sprint(config.Mail.SmtpPort)
 
 	return config
 }
@@ -184,5 +186,12 @@ func (config *Config) forward(msg imap.Message) {
 	err := smtp.SendMail(config.Mail.SmtpHostPort, auth, from, to, msgBody)
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func (config *Config) Repeat(fun func()) {
+	for {
+		fun()
+		time.Sleep(time.Duration(config.List.Interval) * time.Second)
 	}
 }

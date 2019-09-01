@@ -8,4 +8,5 @@ user = ""
 pass = ""
 
 [list]
+interval = 60
 recipients = [ ]

@@ -9,7 +9,9 @@ import (
 func main() {
 	config := gomaspri.ReadConfig("./config.toml")
 
-	messages := config.GetUnseenMail()
-	log.Println("Found New Mail", len(messages))
-	config.ForwardMessages(messages)
+	config.Repeat(func() {
+		messages := config.GetUnseenMail()
+		log.Println("Found New Mail", len(messages))
+		config.ForwardMessages(messages)
+	})
 }
