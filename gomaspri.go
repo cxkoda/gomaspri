@@ -1,17 +1,13 @@
 package gomaspri
 
 import (
-	"io"
-	"io/ioutil"
 	"log"
 	"strconv"
 
 	"github.com/BurntSushi/toml"
-	"gopkg.in/gomail.v2"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
-	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 )
@@ -162,58 +158,6 @@ func (config *Config) GetUnseenMail() []imap.Message {
 	}
 
 	return messages
-}
-
-func (config *Config) SendMail(r imap.Literal) {
-	m := gomail.NewMessage()
-	m.SetHeader("From", config.Mail.Address)
-	recipients := config.List.Recipients
-	m.SetHeader("To", recipients...)
-
-	// Create a new mail reader
-	mr, err := mail.CreateReader(r)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	subject, err := mr.Header.Subject()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	m.SetHeader("Subject", subject)
-
-	// Read each mail's part
-	for {
-		p, err := mr.NextPart()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			log.Fatal(err)
-		}
-
-		switch h := p.Header.(type) {
-		case *mail.InlineHeader:
-			b, _ := ioutil.ReadAll(p.Body)
-			log.Printf("type: %v\n", p.Header.Get("Content-Type"))
-			log.Printf("Got text: %v\n", string(b))
-
-			m.SetBody(p.Header.Get("Content-Type"), string(b))
-		case *mail.AttachmentHeader:
-			filename, _ := h.Filename()
-
-			b, _ := ioutil.ReadAll(p.Body)
-			m.SetBody(p.Header.Get("Content-Type"), string(b))
-			log.Printf("Got attachment: %v\n", filename)
-		}
-	}
-
-	// Connect to the smtp and send the email
-	d := gomail.NewDialer(config.Mail.SmtpHost, config.Mail.SmtpPort, config.Mail.User, config.Mail.Pass)
-
-	if err := d.DialAndSend(m); err != nil {
-		panic(err)
-	}
 }
 
 func (config *Config) ForwardMessages(messages []imap.Message) {
