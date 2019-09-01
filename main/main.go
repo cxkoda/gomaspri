@@ -8,12 +8,8 @@ import (
 
 func main() {
 	config := gomaspri.ReadConfig("./config.toml")
-	log.Printf("Config: %v\n", config)
 
-	r := config.GetMail()
-
-	// fmt.Println(r)
-
-	config.PlainForward(r)
-
+	messages := config.GetUnseenMail()
+	log.Println("Found New Mail", len(messages))
+	config.ForwardMessages(messages)
 }

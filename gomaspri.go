@@ -49,7 +49,58 @@ func ReadConfig(Filepath string) Config {
 	return config
 }
 
-func (config *Config) GetMail() []imap.Literal {
+func GetUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap.SeqSet, uint32, error) {
+	from := mbox.UnseenSeqNum
+	to := mbox.Messages
+
+	if mbox.UnseenSeqNum == 0 {
+		return new(imap.SeqSet), 0, nil
+	}
+
+	seqset := new(imap.SeqSet)
+	seqset.AddRange(from, to)
+	seqsetSize := to - from + 1
+
+	// return seqset, seqsetSize, nil
+	// section := &imap.BodySectionName{}
+
+	// items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
+	// items := imap.FetchFlags.Expand()
+	items := []imap.FetchItem{imap.FetchFlags}
+
+	messages := make(chan *imap.Message, seqsetSize)
+	done := make(chan error, seqsetSize)
+	go func() {
+		done <- client.Fetch(seqset, items, messages)
+	}()
+
+	seqsetUnseen := new(imap.SeqSet)
+	var nUnseen uint32 = 0
+
+	for msg := range messages {
+		// log.Println(msg.Flags)
+		isNew := true
+		for _, flag := range msg.Flags {
+			if flag == imap.SeenFlag {
+				isNew = false
+				break
+			}
+		}
+		if isNew {
+			// log.Println("Found an unseen one", msg.SeqNum)
+			seqsetUnseen.AddNum(msg.SeqNum)
+			nUnseen++
+		}
+	}
+
+	if err := <-done; err != nil {
+		return nil, 0, err
+	}
+
+	return seqsetUnseen, nUnseen, nil
+}
+
+func (config *Config) GetUnseenMail() []imap.Message {
 	log.Println("Connecting to server...")
 
 	// Connect to server
@@ -77,54 +128,40 @@ func (config *Config) GetMail() []imap.Literal {
 
 	// Get the last message
 	if mbox.Messages == 0 {
-		log.Fatal("No message in mailbox")
+		log.Println("The mailbox is empty")
 	}
-	from := uint32(1)
-	to := mbox.Messages
-	seqset := new(imap.SeqSet)
-	seqset.AddRange(from, to)
+
+	seqset, unseen, err := GetUnseenMessageSeq(c, mbox)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if unseen == 0 {
+		return []imap.Message{}
+	}
 
 	// Get the whole message body
 	section := &imap.BodySectionName{}
-	// items := []imap.FetchItem{imap.FetchAll}
-	// items := imap.FetchFull.Expand()
-	// items = append(items, section.FetchItem())
 	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
-	log.Println(items)
 
-	messages := make(chan *imap.Message, mbox.Messages)
-	done := make(chan error, mbox.Messages)
+	messageChannels := make(chan *imap.Message, unseen)
+	done := make(chan error, unseen)
 	go func() {
-		done <- c.Fetch(seqset, items, messages)
+		done <- c.Fetch(seqset, items, messageChannels)
 	}()
 
-	var messageBodies []imap.Literal
-
-	for msg := range messages {
-		isNew := false
-		for _, flag := range msg.Flags {
-			if flag == imap.SeenFlag {
-				isNew = true
-			}
-		}
-		if isNew {
-			log.Println(msg.Envelope.Subject)
-
-			r := msg.GetBody(section)
-
-			if r == nil {
-				log.Fatal("Server didn't returned message body")
-			}
-
-			messageBodies = append(messageBodies, r)
-		}
+	// Convert channel to slice
+	messages := make([]imap.Message, 0)
+	for msg := range messageChannels {
+		log.Printf("%v: %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
+		messages = append(messages, *msg)
 	}
 
 	if err := <-done; err != nil {
 		log.Fatal(err)
 	}
 
-	return messageBodies
+	return messages
 }
 
 func (config *Config) SendMail(r imap.Literal) {
@@ -179,14 +216,25 @@ func (config *Config) SendMail(r imap.Literal) {
 	}
 }
 
-func (config *Config) PlainForward(messages []imap.Literal) {
+func (config *Config) ForwardMessages(messages []imap.Message) {
 	for _, msg := range messages {
-		config.plainForwardSingle(msg)
+		config.forward(msg)
 	}
 }
 
-func (config *Config) plainForwardSingle(msg imap.Literal) {
-	log.Printf("Forwarding to: %v\n", config.List.Recipients)
+func (config *Config) forward(msg imap.Message) {
+	log.Printf("Forwarding: %v - %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
+
+	// Getting body
+	section := &imap.BodySectionName{}
+	msgBody := msg.GetBody(section)
+	if msgBody == nil {
+		log.Println("Server didn't returned message body")
+		return
+	}
+
+	log.Printf(" -> to: %v\n", config.List.Recipients)
+
 	// Set up authentication information.
 	auth := sasl.NewPlainClient("", config.Mail.User, config.Mail.Pass)
 
@@ -194,7 +242,7 @@ func (config *Config) plainForwardSingle(msg imap.Literal) {
 	// and send the email all in one step.
 	from := config.Mail.Address
 	to := config.List.Recipients
-	err := smtp.SendMail(config.Mail.SmtpHostPort, auth, from, to, msg)
+	err := smtp.SendMail(config.Mail.SmtpHostPort, auth, from, to, msgBody)
 	if err != nil {
 		log.Fatal(err)
 	}
