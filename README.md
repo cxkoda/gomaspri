@@ -25,3 +25,6 @@ Other useful commands
 sudo systemctl start gomasprid
 sudo journalctl -f -u gomasprid
 ```
+
+## Administration
+List members can fetch the mailing list by sending a mail with subject `*show`

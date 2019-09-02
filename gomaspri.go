@@ -1,7 +1,9 @@
 package gomaspri
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -172,14 +174,37 @@ func getUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap
 func (config *Config) ProcessMails(messages []imap.Message) {
 	for _, msg := range messages {
 		senderAddress := fmt.Sprintf("%v@%v", msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName)
-		// subject := msg.Envelope.Subject
+		subject := msg.Envelope.Subject
 
-		if config.ContainsAddress(senderAddress) {
+		if subject == "*show" && config.ContainsAddress(senderAddress) {
+			config.SendList(senderAddress)
+		} else if config.ContainsAddress(senderAddress) {
 			config.ForwardMessage(msg)
 		} else {
 			log.Println("Rejected: Sender not in list")
 		}
 	}
+}
+
+func (config *Config) sendMail(to []string, msg io.Reader) error {
+	// Set up authentication information.
+	auth := sasl.NewPlainClient("", config.Mail.User, config.Mail.Pass)
+
+	// Connect to the server, authenticate, set the sender and recipient,
+	// and send the email all in one step.
+	from := config.Mail.Address
+	err := smtp.SendMail(config.Mail.SmtpHostPort, auth, from, to, msg)
+	return err
+}
+
+func (config *Config) SendList(recipient string) error {
+	log.Println("Sending list to: %v", recipient)
+	msg := fmt.Sprintf("To: %v\nSubject: Mailing list\n", recipient)
+	for _, address := range config.List.Recipients {
+		msg = msg + "\n" + address
+	}
+	reader := bytes.NewReader([]byte(msg))
+	return config.sendMail([]string{recipient}, reader)
 }
 
 func (config *Config) ForwardMessages(messages []imap.Message) {
@@ -201,14 +226,8 @@ func (config *Config) ForwardMessage(msg imap.Message) {
 
 	log.Printf(" -> to: %v\n", config.List.Recipients)
 
-	// Set up authentication information.
-	auth := sasl.NewPlainClient("", config.Mail.User, config.Mail.Pass)
-
-	// Connect to the server, authenticate, set the sender and recipient,
-	// and send the email all in one step.
-	from := config.Mail.Address
 	to := config.List.Recipients
-	err := smtp.SendMail(config.Mail.SmtpHostPort, auth, from, to, msgBody)
+	err := config.sendMail(to, msgBody)
 	if err != nil {
 		log.Fatal(err)
 	}
