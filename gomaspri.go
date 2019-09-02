@@ -49,6 +49,15 @@ func ReadConfig(Filepath string) Config {
 	return config
 }
 
+func (config *Config) ContainsAddress(address string) bool {
+	for _, listAddress := range config.List.Recipients {
+		if address == listAddress {
+			return true
+		}
+	}
+	return false
+}
+
 func (config *Config) GetUnseenMail() ([]imap.Message, error) {
 	log.Println("Connecting to server...")
 
@@ -102,8 +111,13 @@ func (config *Config) GetUnseenMail() ([]imap.Message, error) {
 	// Convert channel to slice
 	messages := make([]imap.Message, 0)
 	for msg := range messageChannels {
-		log.Printf("%v: %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
-		messages = append(messages, *msg)
+		senderAddress := fmt.Sprintf("%v@%v", msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName)
+		log.Printf("%v: %v <%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, senderAddress, msg.Envelope.Subject)
+		if config.ContainsAddress(senderAddress) {
+			messages = append(messages, *msg)
+		} else {
+			log.Println("Rejected: Sender not in list")
+		}
 	}
 
 	if err := <-done; err != nil {
