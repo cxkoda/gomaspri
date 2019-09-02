@@ -10,32 +10,18 @@ Since I was not able to find a quick solution for this, I wrote a short implemen
 **WORK IN PROGRESS**
 
 ## Intallation
-
+To build and install gomasprid, together with a configuration file, the systemd service and a dedicated service user execute
 ```bash
-go get github.com/cxkoda/gomaspri
-sudo go build -o /bin/gomaspri github.com/cxkoda/gomaspri/main
+sudo make install
 ```
 
-Add service user and config
+To enable autostart type
 ```bash
-sudo useradd -r -s /bin/false gomaspri
-
-sudo mkdir -p /etc/gomaspri
-sudo cp main/config.toml /etc/gomaspri/.
-sudo chmod -R gomaspri /etc/gomaspri
-sudo chmod o-r /etc/gomaspri
-
-sudo cp main/gomaspri.service /lib/systemd/system/.
-sudo chmod 755 /lib/systemd/system/gomaspri.service
+sudo systemctl enable gomasprid
 ```
 
-Automatic startup
+Other useful commands
 ```bash
-sudo systemctl enable gomaspri
-```
-
-
-```bash
-sudo systemctl start gomaspri
-sudo journalctl -f -u gomaspri
+sudo systemctl start gomasprid
+sudo journalctl -f -u gomasprid
 ```

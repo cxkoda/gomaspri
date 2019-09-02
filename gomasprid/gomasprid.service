@@ -1,0 +1,28 @@
+[Unit]
+Description=Go Mail Sprinkler Daemon
+ConditionPathExists=/etc/gomasprid
+After=network.target
+ 
+[Service]
+Type=simple
+User=gomasprid
+Group=gomasprid
+LimitNOFILE=1024
+
+Restart=on-failure
+RestartSec=10
+
+WorkingDirectory=/etc/gomasprid
+ExecStart=/usr/local/bin/gomasprid /etc/gomasprid/config.toml
+
+# make sure log directory exists and owned by syslog
+PermissionsStartOnly=true
+#ExecStartPre=/bin/mkdir -p /var/log/gomasprid
+#ExecStartPre=/bin/chown syslog:adm /var/log/gomasprid
+#ExecStartPre=/bin/chmod 755 /var/log/gomasprid
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=gomasprid
+ 
+[Install]
+WantedBy=multi-user.target
