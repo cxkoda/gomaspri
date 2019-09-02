@@ -16,7 +16,7 @@ func main() {
 			log.Println(err)
 		} else {
 			log.Println("Found New Mail", len(messages))
-			config.ForwardMessages(messages)
+			config.ProcessMails(messages)
 		}
 	})
 }

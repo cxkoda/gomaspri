@@ -113,11 +113,7 @@ func (config *Config) GetUnseenMail() ([]imap.Message, error) {
 	for msg := range messageChannels {
 		senderAddress := fmt.Sprintf("%v@%v", msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName)
 		log.Printf("%v: %v <%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, senderAddress, msg.Envelope.Subject)
-		if config.ContainsAddress(senderAddress) {
-			messages = append(messages, *msg)
-		} else {
-			log.Println("Rejected: Sender not in list")
-		}
+		messages = append(messages, *msg)
 	}
 
 	if err := <-done; err != nil {
@@ -173,13 +169,26 @@ func getUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap
 	return seqsetUnseen, nUnseen, nil
 }
 
-func (config *Config) ForwardMessages(messages []imap.Message) {
+func (config *Config) ProcessMails(messages []imap.Message) {
 	for _, msg := range messages {
-		config.forward(msg)
+		senderAddress := fmt.Sprintf("%v@%v", msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName)
+		// subject := msg.Envelope.Subject
+
+		if config.ContainsAddress(senderAddress) {
+			config.ForwardMessage(msg)
+		} else {
+			log.Println("Rejected: Sender not in list")
+		}
 	}
 }
 
-func (config *Config) forward(msg imap.Message) {
+func (config *Config) ForwardMessages(messages []imap.Message) {
+	for _, msg := range messages {
+		config.ForwardMessage(msg)
+	}
+}
+
+func (config *Config) ForwardMessage(msg imap.Message) {
 	log.Printf("Forwarding: %v - %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
 
 	// Getting body
