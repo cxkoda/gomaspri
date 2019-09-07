@@ -148,17 +148,35 @@ func (daemon *ListDaemon) sendMail(to []string, msg io.Reader) error {
 }
 
 func (daemon *ListDaemon) SendList(recipient string) error {
-	log.Printf("Sending list to: %v\n", recipient)
-	msg := fmt.Sprintf("To: %v\nSubject: Mailing list\n", recipient)
-	for _, address := range daemon.config.List.Recipients {
-		msg = msg + "\n" + address
-	}
-	reader := bytes.NewReader([]byte(msg))
+	var response bytes.Buffer
+	response.WriteString(daemon.config.GetRecipientString())
+	return daemon.SendMessage(recipient, "Response: *show", response)
+}
+
+func (daemon *ListDaemon) SendMessage(recipient, subject string, message bytes.Buffer) error {
+	fmt.Printf("Sending message to %v, %v\n", recipient, subject)
+
+	var b bytes.Buffer
+	b.WriteString(fmt.Sprintf("To: %v\r\n", recipient))
+	b.WriteString(fmt.Sprintf("Subject: %v\r\n", subject))
+	b.Write(message.Bytes())
+
+	reader := bytes.NewReader(b.Bytes())
 	return daemon.sendMail([]string{recipient}, reader)
 }
 
 func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) error {
-	log.Println("Adding rec")
+	log.Println("Adding new recipients")
+	var response bytes.Buffer
+	defer func() {
+		response.WriteString("\r\n-----------------------------------------\r\n\r\n")
+		response.WriteString("New Mailing List\r\n\r\n")
+		response.WriteString(daemon.config.GetRecipientString())
+		err := daemon.SendMessage(senderAddress, "Response: *add", response)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 
 	// Getting body
 	section := &imap.BodySectionName{}
@@ -166,12 +184,12 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 	// if err != nil {
 	// 	return err
 	// }
-	response := msg.GetBody(section)
-	if response == nil {
+	r := msg.GetBody(section)
+	if r == nil {
 		return errors.New("Server didn't returned message body")
 	}
 
-	m, err := mail.ReadMessage(response)
+	m, err := mail.ReadMessage(r)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -198,13 +216,16 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 			fmt.Printf("Adding new recipient: %v\n", address)
 			if err := daemon.config.AddRecipient(address); err != nil {
 				fmt.Println(err)
+				response.WriteString(err.Error())
+			} else {
+				response.WriteString(fmt.Sprintf("Adding %v\r\n", address))
 			}
 		} else {
-			fmt.Printf("Rejecting new recipient: %v\n", address)
+			fmt.Printf("Recipient address rejected: %v\n", address)
+			response.WriteString(fmt.Sprintf("Recipient address rejected: %v\n", address))
 		}
 	}
 
-	daemon.SendList(senderAddress)
 	return err
 }
 

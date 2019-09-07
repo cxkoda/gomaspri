@@ -77,13 +77,21 @@ func (config *Config) AddRecipient(address string) error {
 	}
 }
 
+func (config *Config) GetRecipientString() string {
+	var buf bytes.Buffer
+
+	for _, address := range config.List.Recipients {
+		buf.WriteString(fmt.Sprintf("%v\n", address))
+	}
+
+	return buf.String()
+}
+
 func (config *Config) UpdateFile() error {
 	buf := new(bytes.Buffer)
 	if err := toml.NewEncoder(buf).Encode(config); err != nil {
 		return err
 	}
-
-	fmt.Println(buf.String())
 
 	f, err := os.Create(config.filepath)
 	if err != nil {
