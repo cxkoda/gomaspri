@@ -1,6 +1,6 @@
 GOMASPRID_USER=gomasprid
 
-bin/gomasprid: gomasprid/gomasprid.go gomaspri.go
+bin/gomasprid: gomasprid/gomasprid.go config.go daemon.go
 	@mkdir -p bin
 	go build -o $@ $<
 
