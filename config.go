@@ -1,22 +1,31 @@
 package gomaspri
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/BurntSushi/toml"
 )
 
 type MailConfig struct {
-	ImapHost     string `toml:"imapHost"`
-	ImapPort     uint32 `toml:"imapPort"`
-	SmtpHost     string `toml:"smtpHost"`
-	SmtpPort     uint32 `toml:"smtpPort"`
-	Address      string `toml:"address"`
-	User         string `toml:"user"`
-	Pass         string `toml:"pass"`
-	ImapHostPort string
-	SmtpHostPort string
+	ImapHost string `toml:"imapHost"`
+	ImapPort uint32 `toml:"imapPort"`
+	SmtpHost string `toml:"smtpHost"`
+	SmtpPort uint32 `toml:"smtpPort"`
+	Address  string `toml:"address"`
+	User     string `toml:"user"`
+	Pass     string `toml:"pass"`
+}
+
+func (mc *MailConfig) ImapHostPort() string {
+	return mc.ImapHost + ":" + fmt.Sprint(mc.ImapPort)
+}
+
+func (mc *MailConfig) SmtpHostPort() string {
+	return mc.SmtpHost + ":" + fmt.Sprint(mc.SmtpPort)
 }
 
 type ListConfig struct {
@@ -28,19 +37,16 @@ type ListConfig struct {
 type Config struct {
 	Mail     MailConfig `toml:"mail"`
 	List     ListConfig `toml:"list"`
-	Filepath string
+	filepath string
 }
 
-func ReadConfig(Filepath string) Config {
+func ReadConfig(filepath string) Config {
 	var config Config
-	if _, err := toml.DecodeFile(Filepath, &config); err != nil {
+	if _, err := toml.DecodeFile(filepath, &config); err != nil {
 		log.Fatalln(err)
 	}
 
-	config.Filepath = Filepath
-	config.Mail.ImapHostPort = config.Mail.ImapHost + ":" + fmt.Sprint(config.Mail.ImapPort)
-	config.Mail.SmtpHostPort = config.Mail.SmtpHost + ":" + fmt.Sprint(config.Mail.SmtpPort)
-
+	config.filepath = filepath
 	return config
 }
 
@@ -60,4 +66,34 @@ func (config *Config) IsAdmin(address string) bool {
 		}
 	}
 	return false
+}
+
+func (config *Config) AddRecipient(address string) error {
+	if config.ContainsAddress(address) {
+		return errors.New("Recipient already in list")
+	} else {
+		config.List.Recipients = append(config.List.Recipients, address)
+		return config.UpdateFile()
+	}
+}
+
+func (config *Config) UpdateFile() error {
+	buf := new(bytes.Buffer)
+	if err := toml.NewEncoder(buf).Encode(config); err != nil {
+		return err
+	}
+
+	fmt.Println(buf.String())
+
+	f, err := os.Create(config.filepath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := f.Write(buf.Bytes()); err != nil {
+		return err
+	}
+
+	return nil
 }

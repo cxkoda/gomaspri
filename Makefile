@@ -14,7 +14,7 @@ install_user:
 	useradd -r -s /bin/false ${GOMASPRID_USER} || true
 
 install_config: gomasprid/config.toml install_user
-	install -o ${GOMASPRID_USER} -D -m 440 $< /etc/gomasprid/config.toml
+	install -o ${GOMASPRID_USER} -D -m 600 $< /etc/gomasprid/config.toml
 
 install_service: gomasprid/gomasprid.service install_user
 	install $< /etc/systemd/system/gomasprid.service

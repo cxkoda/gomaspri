@@ -5,9 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/mail"
+	"strings"
 	"time"
 
+	"github.com/badoux/checkmail"
 	"github.com/emersion/go-imap"
 	idle "github.com/emersion/go-imap-idle"
 	"github.com/emersion/go-imap/client"
@@ -30,7 +34,7 @@ func (daemon *ListDaemon) Connect() error {
 	log.Println("Connecting to server...")
 
 	// Connect to server
-	c, err := client.DialTLS(daemon.config.Mail.ImapHostPort, nil)
+	c, err := client.DialTLS(daemon.config.Mail.ImapHostPort(), nil)
 	if err != nil {
 		return err
 	}
@@ -139,12 +143,12 @@ func (daemon *ListDaemon) sendMail(to []string, msg io.Reader) error {
 	// Connect to the server, authenticate, set the sender and recipient,
 	// and send the email all in one step.
 	from := daemon.config.Mail.Address
-	err := smtp.SendMail(daemon.config.Mail.SmtpHostPort, auth, from, to, msg)
+	err := smtp.SendMail(daemon.config.Mail.SmtpHostPort(), auth, from, to, msg)
 	return err
 }
 
 func (daemon *ListDaemon) SendList(recipient string) error {
-	log.Println("Sending list to: %v", recipient)
+	log.Printf("Sending list to: %v\n", recipient)
 	msg := fmt.Sprintf("To: %v\nSubject: Mailing list\n", recipient)
 	for _, address := range daemon.config.List.Recipients {
 		msg = msg + "\n" + address
@@ -162,15 +166,46 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 	// if err != nil {
 	// 	return err
 	// }
-	msgBody := msg.GetBody(section)
-	if msgBody == nil {
+	response := msg.GetBody(section)
+	if response == nil {
 		return errors.New("Server didn't returned message body")
 	}
 
-	log.Println("BODY:%v", msgBody)
+	m, err := mail.ReadMessage(response)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// return daemon.config.SendList(senderAddress)
-	return nil
+	// header := m.Header
+	// log.Println("Date:", header.Get("Date"))
+	// log.Println("From:", header.Get("From"))
+	// log.Println("To:", header.Get("To"))
+	// log.Println("Subject:", header.Get("Subject"))
+
+	body, err := ioutil.ReadAll(m.Body)
+	if err != nil {
+		return err
+	}
+	bodymessage := string(body)
+	for _, addressRaw := range strings.Split(bodymessage, "\r\n") {
+		if len(addressRaw) == 0 {
+			continue
+		}
+
+		address := strings.TrimSpace(addressRaw)
+		mailErr := checkmail.ValidateFormat(address)
+		if mailErr == nil {
+			fmt.Printf("Adding new recipient: %v\n", address)
+			if err := daemon.config.AddRecipient(address); err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			fmt.Printf("Rejecting new recipient: %v\n", address)
+		}
+	}
+
+	daemon.SendList(senderAddress)
+	return err
 }
 
 func (daemon *ListDaemon) ForwardMessages(messages []imap.Message) {
