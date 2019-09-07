@@ -181,30 +181,50 @@ func (config *Config) SendList(recipient string) error {
 	return config.sendMail([]string{recipient}, reader)
 }
 
+func (config *Config) AddRecipients(senderAddress string, msg imap.Message) error {
+	log.Println("Adding rec")
+
+	// Getting body
+	section := &imap.BodySectionName{}
+	// section, err := imap.ParseBodySectionName(imap.FetchBody)
+	// if err != nil {
+	// 	return err
+	// }
+	msgBody := msg.GetBody(section)
+	if msgBody == nil {
+		return errors.New("Server didn't returned message body")
+	}
+
+	log.Println("BODY:%v", msgBody)
+
+	// return config.SendList(senderAddress)
+	return nil
+}
+
 func (config *Config) ForwardMessages(messages []imap.Message) {
 	for _, msg := range messages {
-		config.ForwardMessage(msg)
+		err := config.ForwardMessage(msg)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
-func (config *Config) ForwardMessage(msg imap.Message) {
+func (config *Config) ForwardMessage(msg imap.Message) error {
 	log.Printf("Forwarding: %v - %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
 
 	// Getting body
 	section := &imap.BodySectionName{}
 	msgBody := msg.GetBody(section)
 	if msgBody == nil {
-		log.Println("Server didn't returned message body")
-		return
+		return errors.New("Server didn't returned message body")
 	}
 
 	log.Printf(" -> to: %v\n", config.List.Recipients)
 
 	to := config.List.Recipients
 	err := config.sendMail(to, msgBody)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return err
 }
 
 func (config *Config) Repeat(fun func()) {
