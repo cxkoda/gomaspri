@@ -105,7 +105,6 @@ func (daemon *ListDaemon) getUnseenMessageSeq() (*imap.SeqSet, uint32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	log.Println("IDs found:", ids)
 
 	if len(ids) > 0 {
 		seqset := new(imap.SeqSet)

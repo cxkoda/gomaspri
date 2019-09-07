@@ -18,7 +18,9 @@ func main() {
 		if err != nil {
 			log.Println(err)
 		} else {
-			log.Println("Found New Mail", len(messages))
+			if len(messages) > 0 {
+				log.Println("Found New Mail", len(messages))
+			}
 			daemon.ProcessMails(messages)
 		}
 	})
