@@ -2,6 +2,7 @@ package gomaspri
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -126,49 +127,22 @@ func (config *Config) GetUnseenMail() ([]imap.Message, error) {
 }
 
 func getUnseenMessageSeq(client *client.Client, mbox *imap.MailboxStatus) (*imap.SeqSet, uint32, error) {
-	from := mbox.UnseenSeqNum
-	to := mbox.Messages
 
-	if mbox.UnseenSeqNum == 0 {
-		return new(imap.SeqSet), 0, nil
-	}
-
-	seqset := new(imap.SeqSet)
-	seqset.AddRange(from, to)
-	seqsetSize := to - from + 1
-
-	items := []imap.FetchItem{imap.FetchFlags}
-
-	messages := make(chan *imap.Message, seqsetSize)
-	done := make(chan error, seqsetSize)
-	go func() {
-		done <- client.Fetch(seqset, items, messages)
-	}()
-
-	seqsetUnseen := new(imap.SeqSet)
-	var nUnseen uint32 = 0
-
-	for msg := range messages {
-		// log.Println(msg.Flags)
-		isNew := true
-		for _, flag := range msg.Flags {
-			if flag == imap.SeenFlag {
-				isNew = false
-				break
-			}
-		}
-		if isNew {
-			// log.Println("Found an unseen one", msg.SeqNum)
-			seqsetUnseen.AddNum(msg.SeqNum)
-			nUnseen++
-		}
-	}
-
-	if err := <-done; err != nil {
+	criteria := imap.NewSearchCriteria()
+	criteria.WithoutFlags = []string{imap.SeenFlag}
+	ids, err := client.Search(criteria)
+	if err != nil {
 		return nil, 0, err
 	}
+	log.Println("IDs found:", ids)
 
-	return seqsetUnseen, nUnseen, nil
+	if len(ids) > 0 {
+		seqset := new(imap.SeqSet)
+		seqset.AddNum(ids...)
+		return seqset, uint32(len(ids)), nil
+	} else {
+		return new(imap.SeqSet), 0, nil
+	}
 }
 
 func (config *Config) ProcessMails(messages []imap.Message) {
