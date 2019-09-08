@@ -50,13 +50,22 @@ func ReadConfig(filepath string) Config {
 	return config
 }
 
-func (config *Config) ContainsAddress(address string) bool {
-	for _, listAddress := range config.List.Recipients {
+func (config *Config) IsRecipient(address string) bool {
+	_, err := config.GetRecipient(address)
+	if err == nil {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (config *Config) GetRecipient(address string) (int, error) {
+	for index, listAddress := range config.List.Recipients {
 		if address == listAddress {
-			return true
+			return index, nil
 		}
 	}
-	return false
+	return -1, errors.New("Recipient not in list")
 }
 
 func (config *Config) IsAdmin(address string) bool {
@@ -69,12 +78,22 @@ func (config *Config) IsAdmin(address string) bool {
 }
 
 func (config *Config) AddRecipient(address string) error {
-	if config.ContainsAddress(address) {
+	ok := config.IsRecipient(address)
+	if !ok {
 		return errors.New("Recipient already in list")
-	} else {
-		config.List.Recipients = append(config.List.Recipients, address)
-		return config.UpdateFile()
 	}
+	config.List.Recipients = append(config.List.Recipients, address)
+	return config.UpdateFile()
+}
+
+func (config *Config) DelRecipient(address string) error {
+	index, err := config.GetRecipient(address)
+	if err != nil {
+		return err
+	}
+	config.List.Recipients = append(config.List.Recipients[:index], config.List.Recipients[index+1:]...)
+	return config.UpdateFile()
+
 }
 
 func (config *Config) GetRecipientString() string {

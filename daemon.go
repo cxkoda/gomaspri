@@ -125,11 +125,13 @@ func (daemon *ListDaemon) ProcessMails(messages []imap.Message) {
 		senderAddress := fmt.Sprintf("%v@%v", msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName)
 		subject := msg.Envelope.Subject
 
-		if subject == "*show" && daemon.config.ContainsAddress(senderAddress) {
+		if subject == "*show" && daemon.config.IsRecipient(senderAddress) {
 			daemon.SendList(senderAddress)
 		} else if subject == "*add" && daemon.config.IsAdmin(senderAddress) {
 			daemon.AddRecipients(senderAddress, msg)
-		} else if daemon.config.ContainsAddress(senderAddress) {
+		} else if subject == "*del" && daemon.config.IsAdmin(senderAddress) {
+			daemon.DelRecipients(senderAddress, msg)
+		} else if daemon.config.IsRecipient(senderAddress) {
 			daemon.ForwardMessage(msg)
 		} else {
 			fmt.Println("Rejected: Sender not in list")
@@ -227,7 +229,55 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 		}
 	}
 
-	return err
+	return nil
+}
+
+func (daemon *ListDaemon) DelRecipients(senderAddress string, msg imap.Message) error {
+	fmt.Println("Removing recipients")
+	var response bytes.Buffer
+	defer func() {
+		response.WriteString("\r\n-----------------------------------------\r\n\r\n")
+		response.WriteString("New Mailing List\r\n\r\n")
+		response.WriteString(daemon.config.GetRecipientString())
+		err := daemon.SendMessage(senderAddress, "Response: *del", response)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	// Getting body
+	section := &imap.BodySectionName{}
+	r := msg.GetBody(section)
+	if r == nil {
+		return errors.New("Server didn't returned message body")
+	}
+
+	m, err := mail.ReadMessage(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(m.Body)
+	if err != nil {
+		return err
+	}
+	bodymessage := string(body)
+	for _, addressRaw := range strings.Split(bodymessage, "\r\n") {
+		if len(addressRaw) == 0 {
+			continue
+		}
+
+		address := strings.TrimSpace(addressRaw)
+		fmt.Printf("Deleting recipient: %v\n", address)
+		if err := daemon.config.DelRecipient(address); err != nil {
+			fmt.Println(err)
+			response.WriteString(err.Error())
+		} else {
+			response.WriteString(fmt.Sprintf("Deleting %v\r\n", address))
+		}
+	}
+
+	return nil
 }
 
 func (daemon *ListDaemon) ForwardMessages(messages []imap.Message) {
