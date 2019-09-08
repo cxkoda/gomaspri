@@ -127,6 +127,8 @@ func (daemon *ListDaemon) ProcessMails(messages []imap.Message) {
 
 		if subject == "*show" && daemon.config.IsRecipient(senderAddress) {
 			daemon.SendList(senderAddress)
+		} else if subject == "*help" && daemon.config.IsAdmin(senderAddress) {
+			daemon.SendHelp(senderAddress)
 		} else if subject == "*add" && daemon.config.IsAdmin(senderAddress) {
 			daemon.AddRecipients(senderAddress, msg)
 		} else if subject == "*del" && daemon.config.IsAdmin(senderAddress) {
@@ -154,6 +156,16 @@ func (daemon *ListDaemon) SendList(recipient string) error {
 	var response bytes.Buffer
 	response.WriteString(daemon.config.GetRecipientString())
 	return daemon.SendMessage(recipient, "Response: *show", response)
+}
+
+func (daemon *ListDaemon) SendHelp(recipient string) error {
+	var response bytes.Buffer
+	response.WriteString("The following special mail subjects will be processed\r\n")
+	response.WriteString("*help: Sends this help message\r\n")
+	response.WriteString("*show: Sends the recipient list\r\n")
+	response.WriteString("*add: Adds the recipients listed in the mail body\r\n")
+	response.WriteString("*del: Deletes the recipients listed in the mail body\r\n")
+	return daemon.SendMessage(recipient, "Response: *help", response)
 }
 
 func (daemon *ListDaemon) SendMessage(recipient, subject string, message bytes.Buffer) error {
