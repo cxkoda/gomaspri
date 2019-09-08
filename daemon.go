@@ -181,7 +181,7 @@ func (daemon *ListDaemon) SendMessage(recipient, subject string, message bytes.B
 }
 
 func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) error {
-	fmt.Println("Adding new recipients")
+	fmt.Printf("Adding new recipients as requested by %v\n", senderAddress)
 	var response bytes.Buffer
 	defer func() {
 		response.WriteString("\r\n-----------------------------------------\r\n\r\n")
@@ -232,8 +232,6 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 			if err := daemon.config.AddRecipient(address); err != nil {
 				fmt.Println(err)
 				response.WriteString(err.Error())
-			} else {
-				response.WriteString(fmt.Sprintf("Adding %v\r\n", address))
 			}
 		} else {
 			fmt.Printf("Recipient address rejected: %v\n", address)
@@ -245,7 +243,7 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 }
 
 func (daemon *ListDaemon) DelRecipients(senderAddress string, msg imap.Message) error {
-	fmt.Println("Removing recipients")
+	fmt.Printf("Deleting recipients as requested by %v\n", senderAddress)
 	var response bytes.Buffer
 	defer func() {
 		response.WriteString("\r\n-----------------------------------------\r\n\r\n")
@@ -284,8 +282,6 @@ func (daemon *ListDaemon) DelRecipients(senderAddress string, msg imap.Message) 
 		if err := daemon.config.DelRecipient(address); err != nil {
 			fmt.Println(err)
 			response.WriteString(err.Error())
-		} else {
-			response.WriteString(fmt.Sprintf("Deleting %v\r\n", address))
 		}
 	}
 
