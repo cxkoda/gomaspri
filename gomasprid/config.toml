@@ -9,4 +9,5 @@ pass = ""
 
 [list]
 interval = 60
+admins = [ ]
 recipients = [ ]
