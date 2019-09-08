@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/cxkoda/gomaspri"
@@ -16,10 +16,10 @@ func main() {
 	daemon.OnUpdate(nil, func() {
 		messages, err := daemon.GetUnseenMail()
 		if err != nil {
-			log.Println(err)
+			fmt.Println(err)
 		} else {
 			if len(messages) > 0 {
-				log.Println("Found New Mail", len(messages))
+				fmt.Println("Found New Mail", len(messages))
 			}
 			daemon.ProcessMails(messages)
 		}

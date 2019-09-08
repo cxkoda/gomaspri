@@ -31,7 +31,7 @@ func NewDaemon(config Config) ListDaemon {
 }
 
 func (daemon *ListDaemon) Connect() error {
-	log.Println("Connecting to server...")
+	fmt.Println("Connecting to server...")
 
 	// Connect to server
 	c, err := client.DialTLS(daemon.config.Mail.ImapHostPort(), nil)
@@ -39,24 +39,24 @@ func (daemon *ListDaemon) Connect() error {
 		return err
 	}
 	daemon.client = c
-	log.Println("Connected")
+	fmt.Println("Connected")
 
 	// Login
 	if err := daemon.client.Login(daemon.config.Mail.User, daemon.config.Mail.Pass); err != nil {
 		return err
 	}
-	log.Println("Logged in")
+	fmt.Println("Logged in")
 
 	// Select INBOX
 	mbox, err := daemon.client.Select("INBOX", false)
 	if err != nil {
 		return err
 	}
-	// log.Println("Flags for INBOX:", mbox.Flags)
+	// fmt.Println("Flags for INBOX:", mbox.Flags)
 
 	// Get the last message
 	if mbox.Messages == 0 {
-		log.Println("The mailbox is empty")
+		fmt.Println("The mailbox is empty")
 	}
 
 	return nil
@@ -91,7 +91,7 @@ func (daemon *ListDaemon) GetUnseenMail() ([]imap.Message, error) {
 	messages := make([]imap.Message, 0)
 	for msg := range messageChannels {
 		senderAddress := fmt.Sprintf("%v@%v", msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName)
-		log.Printf("%v: %v <%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, senderAddress, msg.Envelope.Subject)
+		fmt.Printf("%v: %v <%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, senderAddress, msg.Envelope.Subject)
 		messages = append(messages, *msg)
 	}
 
@@ -132,7 +132,7 @@ func (daemon *ListDaemon) ProcessMails(messages []imap.Message) {
 		} else if daemon.config.ContainsAddress(senderAddress) {
 			daemon.ForwardMessage(msg)
 		} else {
-			log.Println("Rejected: Sender not in list")
+			fmt.Println("Rejected: Sender not in list")
 		}
 	}
 }
@@ -167,7 +167,7 @@ func (daemon *ListDaemon) SendMessage(recipient, subject string, message bytes.B
 }
 
 func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) error {
-	log.Println("Adding new recipients")
+	fmt.Println("Adding new recipients")
 	var response bytes.Buffer
 	defer func() {
 		response.WriteString("\r\n-----------------------------------------\r\n\r\n")
@@ -196,10 +196,10 @@ func (daemon *ListDaemon) AddRecipients(senderAddress string, msg imap.Message) 
 	}
 
 	// header := m.Header
-	// log.Println("Date:", header.Get("Date"))
-	// log.Println("From:", header.Get("From"))
-	// log.Println("To:", header.Get("To"))
-	// log.Println("Subject:", header.Get("Subject"))
+	// fmt.Println("Date:", header.Get("Date"))
+	// fmt.Println("From:", header.Get("From"))
+	// fmt.Println("To:", header.Get("To"))
+	// fmt.Println("Subject:", header.Get("Subject"))
 
 	body, err := ioutil.ReadAll(m.Body)
 	if err != nil {
@@ -234,13 +234,13 @@ func (daemon *ListDaemon) ForwardMessages(messages []imap.Message) {
 	for _, msg := range messages {
 		err := daemon.ForwardMessage(msg)
 		if err != nil {
-			log.Println(err)
+			fmt.Println(err)
 		}
 	}
 }
 
 func (daemon *ListDaemon) ForwardMessage(msg imap.Message) error {
-	log.Printf("Forwarding: %v - %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
+	fmt.Printf("Forwarding: %v - %v <%v@%v>: %v\n", msg.Envelope.Date, msg.Envelope.From[0].PersonalName, msg.Envelope.From[0].MailboxName, msg.Envelope.From[0].HostName, msg.Envelope.Subject)
 
 	// Getting body
 	section := &imap.BodySectionName{}
@@ -249,7 +249,7 @@ func (daemon *ListDaemon) ForwardMessage(msg imap.Message) error {
 		return errors.New("Server didn't returned message body")
 	}
 
-	log.Printf(" -> to: %v\n", daemon.config.List.Recipients)
+	fmt.Printf(" -> to: %v\n", daemon.config.List.Recipients)
 
 	to := daemon.config.List.Recipients
 	err := daemon.sendMail(to, msgBody)
@@ -297,7 +297,7 @@ func (daemon *ListDaemon) OnUpdate(stop <-chan struct{}, fun func()) error {
 
 		select {
 		case <-updates:
-			// log.Println("New update:", update)
+			// fmt.Println("New update:", update)
 			close(stopOrRestart)
 			if err := <-done; err != nil {
 				return err
@@ -305,11 +305,11 @@ func (daemon *ListDaemon) OnUpdate(stop <-chan struct{}, fun func()) error {
 				fun()
 			}
 		case <-stop:
-			log.Println("External idle stopping")
+			fmt.Println("External idle stopping")
 			close(stopOrRestart)
 			return <-done
 		case err := <-done:
-			log.Println("Not idling anymore")
+			fmt.Println("Not idling anymore")
 			return err
 		}
 
