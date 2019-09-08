@@ -46,6 +46,19 @@ func (daemon *ListDaemon) Connect() error {
 		return err
 	}
 	log.Println("Logged in")
+
+	// Select INBOX
+	mbox, err := daemon.client.Select("INBOX", false)
+	if err != nil {
+		return err
+	}
+	// log.Println("Flags for INBOX:", mbox.Flags)
+
+	// Get the last message
+	if mbox.Messages == 0 {
+		log.Println("The mailbox is empty")
+	}
+
 	return nil
 }
 
@@ -54,18 +67,6 @@ func (daemon *ListDaemon) Close() {
 }
 
 func (daemon *ListDaemon) GetUnseenMail() ([]imap.Message, error) {
-
-	// Select INBOX
-	mbox, err := daemon.client.Select("INBOX", false)
-	if err != nil {
-		return nil, err
-	}
-	// log.Println("Flags for INBOX:", mbox.Flags)
-
-	// Get the last message
-	if mbox.Messages == 0 {
-		log.Println("The mailbox is empty")
-	}
 
 	seqset, unseen, err := daemon.getUnseenMessageSeq()
 	if err != nil {
@@ -276,7 +277,7 @@ func (daemon *ListDaemon) Repeat(stop <-chan struct{}, fun func()) error {
 	return nil
 }
 
-func (daemon *ListDaemon) OnUpdate(stop <-chan struct{}, fun func()) {
+func (daemon *ListDaemon) OnUpdate(stop <-chan struct{}, fun func()) error {
 
 	idleClient := idle.NewClient(daemon.client)
 
@@ -284,24 +285,34 @@ func (daemon *ListDaemon) OnUpdate(stop <-chan struct{}, fun func()) {
 	updates := make(chan client.Update)
 	daemon.client.Updates = updates
 
-	// Start idling
-	done := make(chan error, 1)
-	go func() {
-		done <- idleClient.IdleWithFallback(stop, time.Duration(daemon.config.List.Interval)*time.Second)
-	}()
-
 	// Listen for updates
 	for {
+		stopOrRestart := make(chan struct{})
+
+		// Start idling
+		done := make(chan error, 1)
+		go func() {
+			done <- idleClient.IdleWithFallback(stopOrRestart, time.Duration(daemon.config.List.Interval)*time.Second)
+		}()
+
 		select {
-		case update := <-updates:
-			log.Println("New update:", update)
-		case err := <-done:
-			if err != nil {
-				log.Fatal(err)
+		case <-updates:
+			// log.Println("New update:", update)
+			close(stopOrRestart)
+			if err := <-done; err != nil {
+				return err
+			} else {
+				fun()
 			}
+		case <-stop:
+			log.Println("External idle stopping")
+			close(stopOrRestart)
+			return <-done
+		case err := <-done:
 			log.Println("Not idling anymore")
-			return
+			return err
 		}
+
 	}
 
 }

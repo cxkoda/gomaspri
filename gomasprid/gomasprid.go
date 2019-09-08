@@ -13,7 +13,7 @@ func main() {
 	daemon.Connect()
 	defer daemon.Close()
 
-	daemon.Repeat(nil, func() {
+	daemon.OnUpdate(nil, func() {
 		messages, err := daemon.GetUnseenMail()
 		if err != nil {
 			log.Println(err)
